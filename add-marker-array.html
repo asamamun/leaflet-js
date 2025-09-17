@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add Marker Array - Leaflet.js</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            display: flex;
+            gap: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .map-section {
+            flex: 2;
+        }
+        
+        .list-section {
+            flex: 1;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            height: fit-content;
+        }
+        
+        #map {
+            height: 500px;
+            width: 100%;
+            border: 2px solid #ccc;
+            border-radius: 8px;
+        }
+        
+        .info {
+            background: #e3f2fd;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            border-left: 4px solid #2196f3;
+        }
+        
+        .controls {
+            margin-top: 15px;
+            text-align: center;
+        }
+        
+        button {
+            background: #2196f3;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        
+        button:hover {
+            background: #1976d2;
+        }
+        
+        button.danger {
+            background: #f44336;
+        }
+        
+        button.danger:hover {
+            background: #d32f2f;
+        }
+        
+        .marker-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .marker-item {
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 12px;
+            margin-bottom: 10px;
+            transition: all 0.3s ease;
+        }
+        
+        .marker-item:hover {
+            background: #e3f2fd;
+            border-color: #2196f3;
+        }
+        
+        .marker-header {
+            font-weight: bold;
+            color: #1976d2;
+            margin-bottom: 5px;
+        }
+        
+        .marker-coords {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+        
+        .marker-actions {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .marker-actions button {
+            padding: 5px 10px;
+            font-size: 12px;
+            margin: 0;
+        }
+        
+        .stats {
+            background: #e8f5e8;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            text-align: center;
+            font-weight: bold;
+            color: #2e7d32;
+        }
+        
+        .empty-state {
+            text-align: center;
+            color: #999;
+            font-style: italic;
+            padding: 20px;
+        }
+        
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        
+        h2 {
+            color: #1976d2;
+            margin-top: 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Interactive Marker Management with Leaflet.js</h1>
+    
+    <div class="container">
+        <div class="map-section">
+            <div class="info">
+                <strong>Instructions:</strong> Click anywhere on the map to add a marker. All markers will be stored in a JavaScript object and displayed in the list on the right.
+            </div>
+            
+            <div id="map"></div>
+            
+            <div class="controls">
+                <button onclick="clearAllMarkers()" class="danger">Clear All Markers</button>
+                <button onclick="toggleClickMode()">Toggle Click Mode</button>
+                <button onclick="exportMarkers()">Export Markers JSON</button>
+                <button onclick="zoomToAllMarkers()">Zoom to All</button>
+                <span id="status" style="margin-left: 10px; font-weight: bold;">Click mode: ON</span>
+            </div>
+        </div>
+        
+        <div class="list-section">
+            <h2>Markers List</h2>
+            
+            <div class="stats">
+                Total Markers: <span id="marker-count">0</span>
+            </div>
+            
+            <div id="marker-list" class="marker-list">
+                <div class="empty-state">No markers added yet. Click on the map to add markers!</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Leaflet JavaScript -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <script>
+        // Initialize the map
+        let map = L.map('map').setView([40.7128, -74.0060], 13); // New York City coordinates
+        
+        // Add tile layer (OpenStreetMap)
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 19
+        }).addTo(map);
+        
+        // JavaScript object to store all markers
+        let markersObject = {
+            markers: [],
+            count: 0,
+            
+            // Method to add a marker
+            addMarker: function(id, lat, lng, leafletMarker) {
+                const markerData = {
+                    id: id,
+                    latitude: lat,
+                    longitude: lng,
+                    timestamp: new Date().toISOString(),
+                    leafletMarker: leafletMarker
+                };
+                this.markers.push(markerData);
+                this.count++;
+                return markerData;
+            },
+            
+            // Method to remove a marker
+            removeMarker: function(id) {
+                const index = this.markers.findIndex(marker => marker.id === id);
+                if (index !== -1) {
+                    const marker = this.markers[index];
+                    if (marker.leafletMarker) {
+                        map.removeLayer(marker.leafletMarker);
+                    }
+                    this.markers.splice(index, 1);
+                    this.count--;
+                    return true;
+                }
+                return false;
+            },
+            
+            // Method to clear all markers
+            clearAll: function() {
+                this.markers.forEach(marker => {
+                    if (marker.leafletMarker) {
+                        map.removeLayer(marker.leafletMarker);
+                    }
+                });
+                this.markers = [];
+                this.count = 0;
+            },
+            
+            // Method to get marker by ID
+            getMarker: function(id) {
+                return this.markers.find(marker => marker.id === id);
+            },
+            
+            // Method to export as JSON
+            exportToJSON: function() {
+                return this.markers.map(marker => ({
+                    id: marker.id,
+                    latitude: marker.latitude,
+                    longitude: marker.longitude,
+                    timestamp: marker.timestamp
+                }));
+            }
+        };
+        
+        // Flag to control click mode
+        let clickModeEnabled = true;
+        
+        // Counter for unique IDs
+        let markerIdCounter = 1;
+        
+        // Custom marker icon
+        const customIcon = L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41],
+            popupAnchor: [1, -34],
+            shadowSize: [41, 41]
+        });
+        
+        // Add click event listener to the map
+        map.on('click', function(e) {
+            if (clickModeEnabled) {
+                addMarker(e.latlng);
+            }
+        });
+        
+        // Function to add a marker
+        function addMarker(latlng) {
+            const markerId = `marker_${markerIdCounter++}`;
+            const lat = latlng.lat;
+            const lng = latlng.lng;
+            
+            // Create Leaflet marker
+            const leafletMarker = L.marker(latlng, { icon: customIcon }).addTo(map);
+            
+            // Add popup with marker information
+            leafletMarker.bindPopup(`
+                <div>
+                    <strong>Marker ${markerId}</strong><br>
+                    Lat: ${lat.toFixed(6)}<br>
+                    Lng: ${lng.toFixed(6)}<br>
+                    <button onclick="removeMarkerById('${markerId}')" style="margin-top: 5px; background: #f44336; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer;">Remove</button>
+                </div>
+            `);
+            
+            // Add to our markers object
+            const markerData = markersObject.addMarker(markerId, lat, lng, leafletMarker);
+            
+            // Update the list display
+            updateMarkerList();
+            
+            console.log('Marker added:', markerData);
+            console.log('Current markers object:', markersObject);
+        }
+        
+        // Function to remove a specific marker by ID
+        function removeMarkerById(markerId) {
+            if (markersObject.removeMarker(markerId)) {
+                updateMarkerList();
+                console.log(`Marker ${markerId} removed`);
+                console.log('Current markers object:', markersObject);
+            }
+        }
+        
+        // Function to clear all markers
+        function clearAllMarkers() {
+            markersObject.clearAll();
+            updateMarkerList();
+            console.log('All markers cleared');
+            console.log('Current markers object:', markersObject);
+        }
+        
+        // Function to toggle click mode
+        function toggleClickMode() {
+            clickModeEnabled = !clickModeEnabled;
+            const status = document.getElementById('status');
+            status.textContent = `Click mode: ${clickModeEnabled ? 'ON' : 'OFF'}`;
+            status.style.color = clickModeEnabled ? 'green' : 'red';
+            
+            // Change cursor style
+            const mapContainer = document.getElementById('map');
+            mapContainer.style.cursor = clickModeEnabled ? 'crosshair' : 'grab';
+        }
+        
+        // Function to export markers as JSON
+        function exportMarkers() {
+            const jsonData = markersObject.exportToJSON();
+            const jsonString = JSON.stringify(jsonData, null, 2);
+            
+            // Create and download file
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'markers.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            console.log('Exported markers:', jsonData);
+        }
+        
+        // Function to zoom to all markers
+        function zoomToAllMarkers() {
+            if (markersObject.markers.length === 0) {
+                alert('No markers to zoom to!');
+                return;
+            }
+            
+            const group = new L.featureGroup(markersObject.markers.map(marker => marker.leafletMarker));
+            map.fitBounds(group.getBounds().pad(0.1));
+        }
+        
+        // Function to update the marker list display
+        function updateMarkerList() {
+            const listContainer = document.getElementById('marker-list');
+            const countElement = document.getElementById('marker-count');
+            
+            // Update count
+            countElement.textContent = markersObject.count;
+            
+            // Clear current list
+            listContainer.innerHTML = '';
+            
+            if (markersObject.markers.length === 0) {
+                listContainer.innerHTML = '<div class="empty-state">No markers added yet. Click on the map to add markers!</div>';
+                return;
+            }
+            
+            // Add each marker to the list
+            markersObject.markers.forEach((marker, index) => {
+                const markerElement = document.createElement('div');
+                markerElement.className = 'marker-item';
+                markerElement.innerHTML = `
+                    <div class="marker-header">Marker ${marker.id}</div>
+                    <div class="marker-coords">
+                        Lat: ${marker.latitude.toFixed(6)}<br>
+                        Lng: ${marker.longitude.toFixed(6)}<br>
+                        Added: ${new Date(marker.timestamp).toLocaleString()}
+                    </div>
+                    <div class="marker-actions">
+                        <button onclick="zoomToMarker('${marker.id}')">Zoom</button>
+                        <button onclick="removeMarkerById('${marker.id}')" class="danger">Remove</button>
+                    </div>
+                `;
+                listContainer.appendChild(markerElement);
+            });
+        }
+        
+        // Function to zoom to a specific marker
+        function zoomToMarker(markerId) {
+            const marker = markersObject.getMarker(markerId);
+            if (marker && marker.leafletMarker) {
+                map.setView([marker.latitude, marker.longitude], 16);
+                marker.leafletMarker.openPopup();
+            }
+        }
+        
+        // Set initial cursor style
+        document.getElementById('map').style.cursor = 'crosshair';
+        
+        // Initialize the marker list
+        updateMarkerList();
+        
+        // Log the markers object for debugging
+        console.log('Markers object initialized:', markersObject);
+    </script>
+</body>
+</html>

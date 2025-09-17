@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Location - Leaflet.js</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        #map {
+            height: 500px;
+            width: 100%;
+            border: 2px solid #4CAF50;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        .info-panel {
+            background: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .location-info {
+            background: #e8f5e8;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 5px;
+            border-left: 4px solid #4CAF50;
+        }
+        
+        .error-info {
+            background: #ffebee;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 5px;
+            border-left: 4px solid #f44336;
+            color: #c62828;
+        }
+        
+        .controls {
+            text-align: center;
+            margin-top: 15px;
+        }
+        
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        button:hover {
+            background: #45a049;
+        }
+        
+        button:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #4CAF50;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        
+        .status.loading {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+        
+        .status.success {
+            background: #e8f5e8;
+            color: #2e7d32;
+        }
+        
+        .status.error {
+            background: #ffebee;
+            color: #c62828;
+        }
+        
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        
+        .coord-display {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .coord-item {
+            background: #f9f9f9;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        
+        .coord-label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        .coord-value {
+            font-size: 16px;
+            font-weight: bold;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌍 My Current Location</h1>
+        
+        <div class="info-panel">
+            <p><strong>This page will automatically detect and display your current location on the map.</strong></p>
+            <p>Please allow location access when prompted by your browser for the best experience.</p>
+            
+            <div id="status" class="status loading">
+                <div class="loading"></div>
+                Detecting your location...
+            </div>
+            
+            <div id="location-details" style="display: none;">
+                <div class="coord-display">
+                    <div class="coord-item">
+                        <div class="coord-label">Latitude</div>
+                        <div class="coord-value" id="latitude">-</div>
+                    </div>
+                    <div class="coord-item">
+                        <div class="coord-label">Longitude</div>
+                        <div class="coord-value" id="longitude">-</div>
+                    </div>
+                    <div class="coord-item">
+                        <div class="coord-label">Accuracy</div>
+                        <div class="coord-value" id="accuracy">-</div>
+                    </div>
+                    <div class="coord-item">
+                        <div class="coord-label">Last Updated</div>
+                        <div class="coord-value" id="timestamp">-</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Debug Info Panel -->
+            <div id="debug-info" style="background: #f0f0f0; padding: 10px; margin-top: 15px; border-radius: 5px; font-family: monospace; font-size: 12px; display: none;">
+                <strong>🔍 Debug Information:</strong><br>
+                <div id="debug-content">Loading debug info...</div>
+                <button onclick="toggleDebugInfo()" style="margin-top: 10px; padding: 5px 10px; font-size: 11px;">Hide Debug</button>
+            </div>
+            
+            <div style="text-align: center; margin-top: 10px;">
+                <button onclick="toggleDebugInfo()" style="background: #666; padding: 5px 15px; font-size: 12px;">🔍 Show Debug Info</button>
+            </div>
+        </div>
+        
+        <div id="map"></div>
+        
+        <div class="controls">
+            <button id="refresh-btn" onclick="getCurrentLocation()">🔄 Refresh Location</button>
+            <button id="center-btn" onclick="centerOnLocation()" disabled>🎯 Center on Location</button>
+            <button onclick="toggleAccuracyCircle()">👁️ Toggle Accuracy Circle</button>
+            <button onclick="shareLocation()">📤 Share Location</button>
+            <button onclick="showManualLocationInput()" style="background: #FF9800;">📍 Set Location Manually</button>
+            <button onclick="requestPermissionAggressively()" style="background: #9C27B0;">🔓 Force Permission Request</button>
+            <button onclick="openChromeLocationSettings()" style="background: #f44336;">⚙️ Open Chrome Location Settings</button>
+        </div>
+        
+        <!-- Manual Location Input Modal -->
+        <div id="manual-location-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 30px; border-radius: 10px; max-width: 400px; width: 90%;">
+                <h3 style="margin-top: 0; color: #333;">📍 Enter Your Location</h3>
+                <p style="color: #666; font-size: 14px;">Enter latitude and longitude coordinates manually:</p>
+                
+                <div style="margin: 15px 0;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Latitude:</label>
+                    <input type="number" id="manual-lat" step="any" placeholder="e.g., 40.712800" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box;">
+                </div>
+                
+                <div style="margin: 15px 0;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Longitude:</label>
+                    <input type="number" id="manual-lng" step="any" placeholder="e.g., -74.006000" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box;">
+                </div>
+                
+                <div style="text-align: center; margin-top: 20px;">
+                    <button onclick="setManualLocation()" style="background: #4CAF50; margin-right: 10px;">✅ Set Location</button>
+                    <button onclick="hideManualLocationInput()" style="background: #f44336;">❌ Cancel</button>
+                </div>
+                
+                <div style="margin-top: 15px; padding: 10px; background: #f0f0f0; border-radius: 5px; font-size: 12px; color: #666;">
+                    <strong>💡 Tips:</strong><br>
+                    • You can get coordinates from Google Maps by right-clicking on a location<br>
+                    • Or search online for "[your city] coordinates"<br>
+                    • Examples: New York (40.7128, -74.0060), London (51.5074, -0.1278)
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Leaflet JavaScript -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <script>
+        // Initialize the map with a default view
+        let map = L.map('map').setView([40.7128, -74.0060], 13);
+        
+        // Add tile layer (OpenStreetMap)
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 19
+        }).addTo(map);
+        
+        // Variables to store location data
+        let currentLocation = null;
+        let locationMarker = null;
+        let accuracyCircle = null;
+        let watchID = null;
+        let showAccuracyCircle = true;
+        
+        // Custom location icon
+        const locationIcon = L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41],
+            popupAnchor: [1, -34],
+            shadowSize: [41, 41]
+        });
+        
+        // Function to update status display
+        function updateStatus(message, type = 'loading') {
+            const statusElement = document.getElementById('status');
+            statusElement.className = `status ${type}`;
+            
+            if (type === 'loading') {
+                statusElement.innerHTML = `<div class="loading"></div>${message}`;
+            } else {
+                statusElement.innerHTML = message;
+            }
+        }
+        
+        // Function to update location details display
+        function updateLocationDetails(position) {
+            const detailsElement = document.getElementById('location-details');
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            const accuracy = position.coords.accuracy;
+            const timestamp = new Date(position.timestamp);
+            
+            document.getElementById('latitude').textContent = lat.toFixed(6);
+            document.getElementById('longitude').textContent = lng.toFixed(6);
+            document.getElementById('accuracy').textContent = `±${Math.round(accuracy)}m`;
+            document.getElementById('timestamp').textContent = timestamp.toLocaleTimeString();
+            
+            detailsElement.style.display = 'block';
+        }
+        
+        // Function to handle successful location detection
+        function onLocationFound(position) {
+            currentLocation = position;
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            const accuracy = position.coords.accuracy;
+            
+            // Update status
+            updateStatus('✅ Location found successfully!', 'success');
+            
+            // Update location details
+            updateLocationDetails(position);
+            
+            // Remove existing marker and circle
+            if (locationMarker) {
+                map.removeLayer(locationMarker);
+            }
+            if (accuracyCircle) {
+                map.removeLayer(accuracyCircle);
+            }
+            
+            // Add new marker
+            locationMarker = L.marker([lat, lng], { icon: locationIcon })
+                .addTo(map)
+                .bindPopup(`
+                    <div>
+                        <strong>📍 Your Current Location</strong><br>
+                        Latitude: ${lat.toFixed(6)}<br>
+                        Longitude: ${lng.toFixed(6)}<br>
+                        Accuracy: ±${Math.round(accuracy)} meters<br>
+                        <small>Updated: ${new Date(position.timestamp).toLocaleString()}</small>
+                    </div>
+                `)
+                .openPopup();
+            
+            // Add accuracy circle
+            if (showAccuracyCircle) {
+                accuracyCircle = L.circle([lat, lng], {
+                    radius: accuracy,
+                    color: '#4CAF50',
+                    fillColor: '#4CAF50',
+                    fillOpacity: 0.1,
+                    weight: 2
+                }).addTo(map);
+            }
+            
+            // Center map on location
+            map.setView([lat, lng], 16);
+            
+            // Enable center button
+            document.getElementById('center-btn').disabled = false;
+            
+            console.log('Location detected:', {
+                latitude: lat,
+                longitude: lng,
+                accuracy: accuracy,
+                timestamp: new Date(position.timestamp)
+            });
+        }
+        
+        // Function to handle location detection errors
+        function onLocationError(error) {
+            let errorMessage = '';
+            let showManualOption = false;
+            
+            // Detect browser type
+            const isChrome = /Chrome/.test(navigator.userAgent) && /Google Inc/.test(navigator.vendor);
+            const isEdge = /Edg/.test(navigator.userAgent);
+            const isFirefox = /Firefox/.test(navigator.userAgent);
+            
+            // Check for permissions policy violation
+            const isPermissionsPolicyBlocked = error.message && error.message.includes('permissions policy');
+            
+            console.log('Error details:', {
+                code: error.code,
+                message: error.message,
+                isPermissionsPolicyBlocked
+            });
+            
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    if (isPermissionsPolicyBlocked || (error.message && error.message.includes('permissions policy'))) {
+                        errorMessage = `
+                            ❌ <strong>Server-Level Geolocation Block Detected!</strong><br><br>
+                            🚨 The hosting server (coders64.xyz) has disabled geolocation access through a permissions policy.<br><br>
+                            <strong>📊 What this means:</strong><br>
+                            • This is NOT a browser permission issue<br>
+                            • The server administrator has blocked geolocation for security<br>
+                            • No browser settings can override this restriction<br><br>
+                            <strong>🛠️ Solutions:</strong><br>
+                            • Use the "Set Location Manually" button below<br>
+                            • Contact the server administrator to enable geolocation<br>
+                            • Host the file on a different server that allows geolocation
+                        `;
+                    } else if (isChrome) {
+                        errorMessage = `❌ Location blocked in Chrome.<br><strong>🔧 Chrome Fix:</strong><br>
+                        1. Click the 🔒 or 🌐 icon in the address bar<br>
+                        2. Set "Location" to "Allow"<br>
+                        3. Refresh the page (Ctrl+R)<br>
+                        4. If still blocked, try: Settings → Privacy → Site Settings → Location → Allow`;
+                    } else if (isEdge) {
+                        errorMessage = `❌ Location blocked in Edge.<br><strong>🔧 Edge Fix:</strong><br>
+                        1. Click the 🔒 icon in the address bar<br>
+                        2. Set "Location" to "Allow"<br>
+                        3. Refresh the page (Ctrl+R)<br>
+                        4. Alternative: Settings → Cookies and site permissions → Location → Allow`;
+                    } else {
+                        errorMessage = '❌ Location access denied by user. <br><strong>💡 Solution:</strong> Click "Enable Location" in your browser\'s address bar, or use "Set Location Manually" button below.';
+                    }
+                    showManualOption = true;
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    errorMessage = '❌ Location information is unavailable. Please check your device settings or try manual input.';
+                    showManualOption = true;
+                    break;
+                case error.TIMEOUT:
+                    if (isChrome || isEdge) {
+                        errorMessage = '❌ Location request timed out in Chrome/Edge. <br><strong>💡 Try:</strong> Refresh page or use manual input.';
+                    } else {
+                        errorMessage = '❌ Location request timed out. Please try again or set location manually.';
+                    }
+                    showManualOption = true;
+                    break;
+                default:
+                    errorMessage = '❌ An unknown error occurred while retrieving location.';
+                    showManualOption = true;
+                    break;
+            }
+            
+            updateStatus(errorMessage, 'error');
+            
+            // Show manual location button for permission denied errors
+            if (showManualOption) {
+                const statusElement = document.getElementById('status');
+                
+                // Always show manual input for permissions policy issues
+                if (isPermissionsPolicyBlocked || (error.message && error.message.includes('permissions policy'))) {
+                    statusElement.innerHTML += '<br><br><div style="text-align: center; margin: 15px 0;"><button onclick="showManualLocationInput()" style="background: #FF9800; color: white; border: none; padding: 15px 30px; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold;">📍 Use Manual Location Input (Recommended)</button></div>';
+                    
+                    // Add info about server policy
+                    statusElement.innerHTML += '<br><div style="background: #fff3cd; padding: 15px; border-radius: 5px; border-left: 4px solid #ffc107; margin-top: 10px;"><strong>📝 Server Policy Info:</strong><br>The server has implemented a "Permissions-Policy" header that blocks geolocation. This is a security measure and cannot be bypassed by browser settings.</div>';
+                } else {
+                    statusElement.innerHTML += '<br><br><button onclick="showManualLocationInput()" style="background: #FF9800; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin-top: 10px;">📍 Set Location Manually</button>';
+                    
+                    // Add browser-specific permission instructions
+                    if (isChrome || isEdge) {
+                        statusElement.innerHTML += '<br><br><button onclick="showPermissionInstructions()" style="background: #2196F3; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; margin-top: 5px;">📋 Show Permission Guide</button>';
+                    }
+                }
+            }
+            
+            console.error('Location error:', error);
+            console.log('Browser detected:', { isChrome, isEdge, isFirefox });
+        }
+        
+        // Function to get current location
+        function getCurrentLocation() {
+            console.log('getCurrentLocation called');
+            
+            if (!navigator.geolocation) {
+                console.error('Geolocation not supported');
+                updateStatus('❌ Geolocation is not supported by this browser.', 'error');
+                return;
+            }
+            
+            updateStatus('🔍 Getting your current location...', 'loading');
+            console.log('Requesting geolocation...');
+            
+            const options = {
+                enableHighAccuracy: true,
+                timeout: 15000, // Increased timeout for online servers
+                maximumAge: 60000 // 1 minute
+            };
+            
+            console.log('Geolocation options:', options);
+            navigator.geolocation.getCurrentPosition(
+                function(position) {
+                    console.log('Geolocation success:', position);
+                    onLocationFound(position);
+                },
+                function(error) {
+                    console.error('Geolocation error:', error);
+                    onLocationError(error);
+                },
+                options
+            );
+        }
+        
+        // Function to center map on current location
+        function centerOnLocation() {
+            if (currentLocation && locationMarker) {
+                const lat = currentLocation.coords.latitude;
+                const lng = currentLocation.coords.longitude;
+                map.setView([lat, lng], 16);
+                locationMarker.openPopup();
+            }
+        }
+        
+        // Function to toggle accuracy circle
+        function toggleAccuracyCircle() {
+            showAccuracyCircle = !showAccuracyCircle;
+            
+            if (accuracyCircle) {
+                if (showAccuracyCircle) {
+                    accuracyCircle.addTo(map);
+                } else {
+                    map.removeLayer(accuracyCircle);
+                }
+            }
+        }
+        
+        // Function to share location
+        function shareLocation() {
+            if (!currentLocation) {
+                alert('Location not available. Please detect your location first.');
+                return;
+            }
+            
+            const lat = currentLocation.coords.latitude;
+            const lng = currentLocation.coords.longitude;
+            const url = `https://www.google.com/maps?q=${lat},${lng}`;
+            
+            if (navigator.share) {
+                navigator.share({
+                    title: 'My Current Location',
+                    text: `I'm currently at: ${lat.toFixed(6)}, ${lng.toFixed(6)}`,
+                    url: url
+                });
+            } else {
+                // Fallback: copy to clipboard
+                const textToCopy = `My location: ${lat.toFixed(6)}, ${lng.toFixed(6)}\nGoogle Maps: ${url}`;
+                navigator.clipboard.writeText(textToCopy).then(() => {
+                    alert('Location copied to clipboard!');
+                }).catch(() => {
+                    prompt('Copy this location:', textToCopy);
+                });
+            }
+        }
+        
+        // Function to start watching location (for continuous updates)
+        function startWatchingLocation() {
+            if (!navigator.geolocation) return;
+            
+            const options = {
+                enableHighAccuracy: true,
+                timeout: 15000,
+                maximumAge: 30000
+            };
+            
+            watchID = navigator.geolocation.watchPosition(onLocationFound, onLocationError, options);
+        }
+        
+        // Function to stop watching location
+        function stopWatchingLocation() {
+            if (watchID !== null) {
+                navigator.geolocation.clearWatch(watchID);
+                watchID = null;
+            }
+        }
+        
+        // Initialize - get location on page load
+        window.addEventListener('load', function() {
+            console.log('Page loaded, checking geolocation support...');
+            
+            // Check if running on HTTPS or localhost
+            const isSecure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+            const isLocalhost = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+            const isExternalDomain = !isLocalhost && location.hostname !== '';
+            
+            console.log('Environment check:', {
+                isSecure,
+                isLocalhost,
+                isExternalDomain,
+                protocol: location.protocol,
+                hostname: location.hostname,
+                href: location.href
+            });
+            
+            // Special handling for external domains
+            if (isExternalDomain && !isSecure) {
+                updateStatus('⚠️ This site must use HTTPS for geolocation to work. Please contact the site administrator.', 'error');
+                return;
+            }
+            
+            // Check geolocation support
+            if (!navigator.geolocation) {
+                updateStatus('❌ Geolocation is not supported by this browser.', 'error');
+                return;
+            }
+            
+            // Check for permissions policy restrictions
+            if (navigator.permissions) {
+                navigator.permissions.query({name: 'geolocation'})
+                    .then(function(result) {
+                        console.log('Permissions API result:', result.state);
+                        if (result.state === 'denied') {
+                            // Check if it's a permissions policy issue
+                            updateStatus('⚠️ Checking permissions policy...', 'loading');
+                        }
+                    })
+                    .catch(function(error) {
+                        console.log('Permissions API check failed:', error);
+                        if (error.message && error.message.includes('permissions policy')) {
+                            updateStatus('❌ Server has disabled geolocation via permissions policy. Please use manual input.', 'error');
+                            const statusElement = document.getElementById('status');
+                            statusElement.innerHTML += '<br><br><button onclick="showManualLocationInput()" style="background: #FF9800; color: white; border: none; padding: 15px 30px; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold;">📍 Use Manual Location Input</button>';
+                            return;
+                        }
+                    });
+            }
+            
+            // Show special message for external domains
+            if (isExternalDomain) {
+                updateStatus('🌍 External domain detected. Location permission may need explicit approval...', 'loading');
+                
+                // Add immediate manual option for external domains
+                setTimeout(() => {
+                    const statusElement = document.getElementById('status');
+                    if (statusElement.textContent.includes('may need explicit approval')) {
+                        statusElement.innerHTML += '<br><br><button onclick="showManualLocationInput()" style="background: #FF9800; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin: 5px;">📍 Use Manual Input</button>';
+                        statusElement.innerHTML += '<button onclick="requestPermissionAggressively()" style="background: #9C27B0; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin: 5px;">🔓 Try Permission</button>';
+                    }
+                }, 1000);
+            }
+            
+            console.log('Geolocation supported, requesting location...');
+            getCurrentLocation();
+        });
+        
+        // Clean up when page is unloaded
+        window.addEventListener('beforeunload', function() {
+            stopWatchingLocation();
+        });
+        
+        // Manual location input functions
+        function showManualLocationInput() {
+            document.getElementById('manual-location-modal').style.display = 'block';
+            
+            // Pre-fill with current map center if no location is set
+            if (!currentLocation) {
+                const center = map.getCenter();
+                document.getElementById('manual-lat').value = center.lat.toFixed(6);
+                document.getElementById('manual-lng').value = center.lng.toFixed(6);
+            }
+        }
+        
+        function hideManualLocationInput() {
+            document.getElementById('manual-location-modal').style.display = 'none';
+        }
+        
+        function setManualLocation() {
+            const lat = parseFloat(document.getElementById('manual-lat').value);
+            const lng = parseFloat(document.getElementById('manual-lng').value);
+            
+            // Validate coordinates
+            if (isNaN(lat) || isNaN(lng)) {
+                alert('Please enter valid latitude and longitude values.');
+                return;
+            }
+            
+            if (lat < -90 || lat > 90) {
+                alert('Latitude must be between -90 and 90 degrees.');
+                return;
+            }
+            
+            if (lng < -180 || lng > 180) {
+                alert('Longitude must be between -180 and 180 degrees.');
+                return;
+            }
+            
+            // Create a mock position object
+            const mockPosition = {
+                coords: {
+                    latitude: lat,
+                    longitude: lng,
+                    accuracy: 1000 // Default accuracy for manual input
+                },
+                timestamp: Date.now()
+            };
+            
+            // Update location using the mock position
+            onLocationFound(mockPosition);
+            
+            // Update status to indicate manual input
+            updateStatus('📍 Location set manually!', 'success');
+            
+            // Hide modal
+            hideManualLocationInput();
+            
+            console.log('Manual location set:', { latitude: lat, longitude: lng });
+        }
+        
+        // Close modal when clicking outside
+        document.getElementById('manual-location-modal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                hideManualLocationInput();
+            }
+        });
+        
+        // Handle Enter key in input fields
+        document.getElementById('manual-lat').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                document.getElementById('manual-lng').focus();
+            }
+        });
+        
+        document.getElementById('manual-lng').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                setManualLocation();
+            }
+        });
+        
+        // Debug functions
+        function toggleDebugInfo() {
+            const debugPanel = document.getElementById('debug-info');
+            const isVisible = debugPanel.style.display !== 'none';
+            
+            if (isVisible) {
+                debugPanel.style.display = 'none';
+            } else {
+                debugPanel.style.display = 'block';
+                updateDebugInfo();
+            }
+        }
+        
+        function updateDebugInfo() {
+            const debugContent = document.getElementById('debug-content');
+            
+            // Detect browser
+            const isChrome = /Chrome/.test(navigator.userAgent) && /Google Inc/.test(navigator.vendor);
+            const isEdge = /Edg/.test(navigator.userAgent);
+            const isFirefox = /Firefox/.test(navigator.userAgent);
+            const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
+            
+            let browserName = 'Unknown';
+            if (isChrome) browserName = 'Chrome';
+            else if (isEdge) browserName = 'Edge';
+            else if (isFirefox) browserName = 'Firefox';
+            else if (isSafari) browserName = 'Safari';
+            
+            const info = `
+                <strong>Browser Info:</strong><br>
+                Browser: ${browserName}<br>
+                User Agent: ${navigator.userAgent}<br>
+                Platform: ${navigator.platform}<br><br>
+                
+                <strong>Location Info:</strong><br>
+                Geolocation Supported: ${!!navigator.geolocation}<br>
+                Is Secure Context: ${window.isSecureContext}<br>
+                Protocol: ${location.protocol}<br>
+                Hostname: ${location.hostname}<br>
+                Full URL: ${location.href}<br><br>
+                
+                <strong>Permissions API:</strong><br>
+                Permissions API Available: ${!!navigator.permissions}<br>
+                ${navigator.permissions ? 'Permission Status: (checking...)' : 'Permissions API not supported'}<br><br>
+                
+                <strong>Current Status:</strong><br>
+                Status: ${document.getElementById('status').textContent}<br>
+                Has Current Location: ${!!currentLocation}<br><br>
+                
+                <strong>Browser-Specific Notes:</strong><br>
+                ${isChrome ? '⚠️ Chrome: May block location on HTTP sites' : ''}
+                ${isEdge ? '⚠️ Edge: Similar restrictions to Chrome' : ''}
+                ${isFirefox ? '✅ Firefox: Generally more permissive with geolocation' : ''}<br><br>
+                
+                <strong>Console Logs:</strong><br>
+                <em>Check browser console (F12) for detailed logs</em>
+            `;
+            debugContent.innerHTML = info;
+            
+            // Check permissions if available
+            if (navigator.permissions) {
+                navigator.permissions.query({name: 'geolocation'}).then(function(result) {
+                    const permissionInfo = debugContent.innerHTML.replace(
+                        'Permission Status: (checking...)',
+                        `Permission Status: ${result.state}`
+                    );
+                    debugContent.innerHTML = permissionInfo;
+                }).catch(function(error) {
+                    console.log('Permission query failed:', error);
+                });
+            }
+        }
+        
+        // Function to show detailed permission instructions
+        function showPermissionInstructions() {
+            const isChrome = /Chrome/.test(navigator.userAgent) && /Google Inc/.test(navigator.vendor);
+            const isEdge = /Edg/.test(navigator.userAgent);
+            
+            let instructions = '';
+            
+            if (isChrome) {
+                instructions = `
+                    <h3>📊 Chrome Location Permission Guide (External Domain)</h3>
+                    <div style="text-align: left; line-height: 1.6;">
+                        <div style="background: #ffebee; padding: 10px; border-radius: 5px; margin-bottom: 15px; border-left: 4px solid #f44336;">
+                            <strong>⚠️ External Domain Issue:</strong><br>
+                            Chrome is very strict with location permissions on external domains like coders64.xyz
+                        </div>
+                        
+                        <h4>🔥 Method 1: Force Allow (Most Effective)</h4>
+                        • Look for the 🔒 or 🌐 icon in the address bar (left side)<br>
+                        • Click it → You'll see "Location: Block" or similar<br>
+                        • Click the dropdown and select "Allow"<br>
+                        • <strong>IMPORTANT:</strong> Refresh the page immediately (Ctrl+R)<br><br>
+                        
+                        <h4>🎯 Method 2: Chrome Site Settings</h4>
+                        • Click the three dots menu (⋮) → Settings<br>
+                        • Go to "Privacy and security" → "Site Settings"<br>
+                        • Click "Location"<br>
+                        • Click "Add" next to "Allowed to access your location"<br>
+                        • Add: <code>https://coders64.xyz</code><br>
+                        • Return to the page and refresh<br><br>
+                        
+                        <h4>🔄 Method 3: Reset and Retry</h4>
+                        • Go to: <code>chrome://settings/content/location</code><br>
+                        • Find coders64.xyz in the "Blocked" list<br>
+                        • Remove it from blocked<br>
+                        • Refresh the page and try again<br><br>
+                        
+                        <div style="background: #e8f5e8; padding: 10px; border-radius: 5px; border-left: 4px solid #4CAF50;">
+                            <strong>✅ Pro Tip:</strong> If nothing works, use the "Set Location Manually" button - it's just as accurate!
+                        </div>
+                    </div>
+                `;
+            } else if (isEdge) {
+                instructions = `
+                    <h3>📊 Edge Location Permission Guide</h3>
+                    <div style="text-align: left; line-height: 1.6;">
+                        <h4>Method 1: Address Bar</h4>
+                        • Look for 🔒 icon in address bar<br>
+                        • Click it and set "Location" to "Allow"<br>
+                        • Refresh the page<br><br>
+                        
+                        <h4>Method 2: Edge Settings</h4>
+                        • Go to Edge Settings (edge://settings/)<br>
+                        • Click "Cookies and site permissions"<br>
+                        • Click "Location"<br>
+                        • Toggle "Ask before accessing" ON<br>
+                        • Add your site to "Allow" list<br><br>
+                        
+                        <h4>Method 3: Site Permissions</h4>
+                        • Click the 🔒 icon in the address bar<br>
+                        • Set "Location" to "Allow"<br>
+                        • Refresh the page
+                    </div>
+                `;
+            }
+            
+            // Create modal for instructions
+            const modal = document.createElement('div');
+            modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; display: flex; align-items: center; justify-content: center;';
+            
+            modal.innerHTML = `
+                <div style="background: white; padding: 30px; border-radius: 10px; max-width: 500px; width: 90%; max-height: 80%; overflow-y: auto;">
+                    ${instructions}
+                    <div style="text-align: center; margin-top: 20px;">
+                        <button onclick="this.closest('div[style*="position: fixed"]').remove()" style="background: #4CAF50; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">Got It!</button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            
+            // Close on outside click
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) {
+                    modal.remove();
+                }
+            });
+        }
+        
+        // Function to request permission more aggressively (useful for Chrome/Edge)
+        function requestPermissionAggressively() {
+            updateStatus('🔓 Requesting location permission...', 'loading');
+            
+            // Try using the Permissions API first
+            if (navigator.permissions) {
+                navigator.permissions.query({name: 'geolocation'})
+                    .then(function(result) {
+                        console.log('Current permission state:', result.state);
+                        
+                        if (result.state === 'granted') {
+                            updateStatus('✅ Permission already granted! Getting location...', 'success');
+                            getCurrentLocation();
+                        } else if (result.state === 'prompt') {
+                            updateStatus('🔍 Permission prompt available. Requesting location...', 'loading');
+                            getCurrentLocation();
+                        } else {
+                            updateStatus('❌ Permission denied. Please enable manually via address bar or use manual input.', 'error');
+                            showPermissionInstructions();
+                        }
+                    })
+                    .catch(function(error) {
+                        console.log('Permissions API failed:', error);
+                        // Fallback to direct geolocation call
+                        getCurrentLocation();
+                    });
+            } else {
+                // Fallback for browsers without Permissions API
+                console.log('Permissions API not available, trying direct geolocation');
+                getCurrentLocation();
+            }
+        }
+        
+        // Function to open Chrome location settings directly
+        function openChromeLocationSettings() {
+            const isChrome = /Chrome/.test(navigator.userAgent) && /Google Inc/.test(navigator.vendor);
+            
+            if (isChrome) {
+                // Try to open Chrome's location settings page
+                const settingsUrl = 'chrome://settings/content/location';
+                
+                try {
+                    window.open(settingsUrl, '_blank');
+                    
+                    // Show instructions
+                    const instructions = `
+                        <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 3000; display: flex; align-items: center; justify-content: center;">
+                            <div style="background: white; padding: 30px; border-radius: 10px; max-width: 500px; width: 90%; text-align: center;">
+                                <h3>🔧 Chrome Settings Opened!</h3>
+                                <div style="text-align: left; line-height: 1.8; margin: 20px 0;">
+                                    <p><strong>In the Chrome settings tab that just opened:</strong></p>
+                                    <ol>
+                                        <li>Look for "<strong>coders64.xyz</strong>" in the <span style="color: red;">Blocked</span> section</li>
+                                        <li>Click the <strong>trash/delete icon</strong> next to it</li>
+                                        <li>Or click "<strong>Add</strong>" next to "Allowed" section</li>
+                                        <li>Type: <code>https://coders64.xyz</code></li>
+                                        <li><strong>Return here and refresh this page</strong></li>
+                                    </ol>
+                                </div>
+                                <button onclick="this.closest('div[style*="position: fixed"]').remove(); location.reload();" style="background: #4CAF50; color: white; border: none; padding: 15px 25px; border-radius: 5px; cursor: pointer; font-size: 16px;">✅ Done - Refresh Page</button>
+                                <button onclick="this.closest('div[style*="position: fixed"]').remove()" style="background: #666; color: white; border: none; padding: 15px 25px; border-radius: 5px; cursor: pointer; font-size: 16px; margin-left: 10px;">Close</button>
+                            </div>
+                        </div>
+                    `;
+                    
+                    document.body.insertAdjacentHTML('beforeend', instructions);
+                    
+                } catch (error) {
+                    console.log('Could not open Chrome settings directly:', error);
+                    
+                    // Fallback: show manual instructions
+                    alert('Please manually go to:\nChrome Settings > Privacy and security > Site Settings > Location\n\nThen add https://coders64.xyz to the allowed list.');
+                }
+            } else {
+                alert('This feature is for Chrome browser only. Please use the permission guide for your browser.');
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add Marker on Click - Leaflet.js</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+        }
+        
+        #map {
+            height: 500px;
+            width: 100%;
+            border: 2px solid #ccc;
+            border-radius: 8px;
+        }
+        
+        .info {
+            background: #f4f4f4;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            border-left: 4px solid #007cba;
+        }
+        
+        .controls {
+            margin-top: 15px;
+            text-align: center;
+        }
+        
+        button {
+            background: #007cba;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 0 5px;
+        }
+        
+        button:hover {
+            background: #005a87;
+        }
+    </style>
+</head>
+<body>
+    <h1>Add Marker on Mouse Click</h1>
+    
+    <div class="info">
+        <strong>Instructions:</strong> Click anywhere on the map to add a marker at that location.
+    </div>
+    
+    <div id="map"></div>
+    
+    <div class="controls">
+        <button onclick="clearAllMarkers()">Clear All Markers</button>
+        <button onclick="toggleClickMode()">Toggle Click Mode</button>
+        <span id="status">Click mode: ON</span>
+    </div>
+    
+    <!-- Leaflet JavaScript -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <script>
+        // Initialize the map
+        let map = L.map('map').setView([23.800077305269536, 90.3715140097911], 18); // Kazipara coordinates
+        
+        // Add tile layer (OpenStreetMap)
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 19
+        }).addTo(map);
+        
+        // Array to store all markers
+        let markers = [];
+        
+        // Flag to control click mode
+        let clickModeEnabled = true;
+        
+        // Custom marker icon (optional)
+        const customIcon = L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41],
+            popupAnchor: [1, -34],
+            shadowSize: [41, 41]
+        });
+        
+        // Add click event listener to the map
+        map.on('click', function(e) {
+            if (clickModeEnabled) {
+                addMarker(e.latlng);
+            }
+        });
+        
+        // Function to add a marker
+        function addMarker(latlng) {
+            // Create marker with custom icon
+            const marker = L.marker(latlng, { icon: customIcon }).addTo(map);
+            
+            // Add popup with coordinates
+            const lat = latlng.lat.toFixed(6);
+            const lng = latlng.lng.toFixed(6);
+            
+            marker.bindPopup(`
+                <div>
+                    <strong>Marker ${markers.length + 1}</strong><br>
+                    Latitude: ${lat}<br>
+                    Longitude: ${lng}<br>
+                    <button onclick="removeMarker(${markers.length})" style="margin-top: 5px;">Remove This Marker</button>
+                </div>
+            `).openPopup();
+            
+            // Add marker to array
+            markers.push(marker);
+            
+            console.log(`Marker added at: ${lat}, ${lng}`);
+        }
+        
+        // Function to remove a specific marker
+        function removeMarker(index) {
+            if (markers[index]) {
+                map.removeLayer(markers[index]);
+                markers[index] = null; // Mark as removed but keep index
+                console.log(`Marker ${index + 1} removed`);
+            }
+        }
+        
+        // Function to clear all markers
+        function clearAllMarkers() {
+            markers.forEach(marker => {
+                if (marker) {
+                    map.removeLayer(marker);
+                }
+            });
+            markers = [];
+            console.log('All markers cleared');
+        }
+        
+        // Function to toggle click mode
+        function toggleClickMode() {
+            clickModeEnabled = !clickModeEnabled;
+            const status = document.getElementById('status');
+            status.textContent = `Click mode: ${clickModeEnabled ? 'ON' : 'OFF'}`;
+            status.style.color = clickModeEnabled ? 'green' : 'red';
+            
+            // Change cursor style
+            const mapContainer = document.getElementById('map');
+            mapContainer.style.cursor = clickModeEnabled ? 'crosshair' : 'grab';
+        }
+        
+        // Set initial cursor style
+        document.getElementById('map').style.cursor = 'crosshair';
+        
+        // Add some example markers for demonstration (optional)
+        // addMarker(L.latLng(40.7589, -73.9851)); // Times Square
+        // addMarker(L.latLng(40.6892, -74.0445)); // Statue of Liberty
+    </script>
+</body>
+</html>
